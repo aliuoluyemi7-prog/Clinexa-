@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ClinicStaffOS — Login</title>
+<style>
+  body {
+    font-family: -apple-system, system-ui, sans-serif;
+    max-width: 420px;
+    margin: 40px auto;
+    padding: 0 20px;
+    color: #1a1a1a;
+  }
+  h1 { font-size: 20px; margin-bottom: 4px; }
+  h2 { font-size: 15px; color: #555; margin-top: 32px; }
+  input {
+    width: 100%;
+    padding: 10px;
+    margin: 6px 0;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 15px;
+    box-sizing: border-box;
+  }
+  button {
+    width: 100%;
+    padding: 12px;
+    margin-top: 10px;
+    border: none;
+    border-radius: 6px;
+    background: #2563eb;
+    color: white;
+    font-size: 15px;
+    font-weight: 600;
+  }
+  button:active { opacity: 0.8; }
+  #result {
+    margin-top: 20px;
+    padding: 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    white-space: pre-wrap;
+    word-break: break-word;
+    display: none;
+  }
+  #result.success { background: #dcfce7; color: #166534; display: block; }
+  #result.error { background: #fee2e2; color: #991b1b; display: block; }
+</style>
+</head>
+<body>
+
+  <h1>ClinicStaffOS</h1>
+  <p style="color:#666; font-size:14px;">Test page — signup, login, session check</p>
+
+  <h2>Owner Sign Up</h2>
+  <input type="text" id="clinicName" placeholder="Clinic name (e.g. Wellspring Clinic)">
+  <input type="email" id="signupEmail" placeholder="Email">
+  <input type="password" id="signupPassword" placeholder="Password (min 6 chars)">
+  <button id="signupBtn">Create Owner Account</button>
+
+  <h2>Login</h2>
+  <input type="email" id="loginEmail" placeholder="Email">
+  <input type="password" id="loginPassword" placeholder="Password">
+  <button id="loginBtn">Log In</button>
+
+  <h2>Session</h2>
+  <button id="checkSessionBtn">Check Current Session</button>
+  <button id="logoutBtn" style="background:#6b7280;">Log Out</button>
+
+  <div id="result"></div>
+
+  <script type="module">
+    import { signUpOwner, login, logout, getSession, getCurrentUserProfile } from './services/auth.js';
+
+    const resultEl = document.getElementById('result');
+
+    function showResult(obj, isError = false) {
+      resultEl.className = isError ? 'error' : 'success';
+      resultEl.textContent = JSON.stringify(obj, null, 2);
+    }
+
+    document.getElementById('signupBtn').addEventListener('click', async () => {
+      const clinicName = document.getElementById('clinicName').value.trim();
+      const email = document.getElementById('signupEmail').value.trim();
+      const password = document.getElementById('signupPassword').value;
+
+      if (!clinicName || !email || !password) {
+        showResult({ error: 'Fill in clinic name, email, and password.' }, true);
+        return;
+      }
+
+      const res = await signUpOwner({ email, password, clinicName });
+      showResult(res, !res.success);
+    });
+
+    document.getElementById('loginBtn').addEventListener('click', async () => {
+      const email = document.getElementById('loginEmail').value.trim();
+      const password = document.getElementById('loginPassword').value;
+
+      const res = await login({ email, password });
+      showResult(res, !res.success);
+    });
+
+    document.getElementById('checkSessionBtn').addEventListener('click', async () => {
+      const sessionRes = await getSession();
+      const profileRes = await getCurrentUserProfile();
+      showResult({ session: sessionRes, profile: profileRes });
+    });
+
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+      const res = await logout();
+      showResult(res, !res.success);
+    });
+  </script>
+
+</body>
+</html>
