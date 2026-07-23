@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Clinexa — Attendance</title>
+<style>
+  body {
+    font-family: -apple-system, system-ui, sans-serif;
+    max-width: 380px;
+    margin: 20px auto;
+    padding: 0 16px 60px;
+    color: #1a1a1a;
+    text-align: center;
+  }
+  h1 { font-size: 20px; margin-bottom: 2px; }
+  p.sub { color: #666; font-size: 14px; margin-top: 0; }
+
+  #pinDisplay {
+    font-size: 32px;
+    letter-spacing: 10px;
+    margin: 24px 0;
+    min-height: 44px;
+    font-weight: 600;
+  }
+
+  .keypad {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+  .keypad button {
+    padding: 18px 0;
+    font-size: 22px;
+    border: 1px solid #ddd;
+    border-radius: 10px;
+    background: #f8f8f8;
+    color: #1a1a1a;
+  }
+  .keypad button:active { background: #e5e5e5; }
+  .keypad button.clear { background: #fee2e2; color: #991b1b; font-size: 14px; }
+  .keypad button.back { background: #fef3c7; color: #92400e; font-size: 18px; }
+
+  .actionBtn {
+    width: 100%;
+    padding: 16px;
+    margin-top: 10px;
+    border: none;
+    border-radius: 8px;
+    font-size: 17px;
+    font-weight: 700;
+    color: white;
+  }
+  #clockInBtn { background: #16a34a; }
+  #clockOutBtn { background: #dc2626; }
+  .actionBtn:disabled { background: #9ca3af; }
+
+  #result {
+    margin-top: 20px;
+    padding: 16px;
+    border-radius: 8px;
+    font-size: 15px;
+    white-space: pre-wrap;
+    display: none;
+  }
+  #result.success { background: #dcfce7; color: #166534; display: block; }
+  #result.error { background: #fee2e2; color: #991b1b; display: block; }
+  #result.loading { background: #dbeafe; color: #1e40af; display: block; }
+
+  #result .big-name { font-size: 19px; font-weight: 700; margin-bottom: 4px; }
+  #result .time { font-size: 14px; opacity: 0.85; }
+</style>
+</head>
+<body>
+
+  <h1>Clinexa</h1>
+  <p class="sub">Staff Attendance</p>
+
+  <div id="authGate" style="display:none; padding: 20px 0;">
+    <p>This device needs to be logged in once before staff can use their PINs. <a href="login.html">Go to login</a></p>
+  </div>
+
+  <div id="kioskApp" style="display:none;">
+
+  <div id="pinDisplay">••••</div>
+
+  <div class="keypad" id="keypad">
+    <button data-digit="1">1</button>
+    <button data-digit="2">2</button>
+    <button data-digit="3">3</button>
+    <button data-digit="4">4</button>
+    <button data-digit="5">5</button>
+    <button data-digit="6">6</button>
+    <button data-digit="7">7</button>
+    <button data-digit="8">8</button>
+    <button data-digit="9">9</button>
+    <button class="clear" id="clearBtn">CLR</button>
+    <button data-digit="0">0</button>
+    <button class="back" id="backBtn">⌫</button>
+  </div>
+
+  <button class="actionBtn" id="clockInBtn">CLOCK IN</button>
+  <button class="actionBtn" id="clockOutBtn">CLOCK OUT</button>
+
+  <div id="result"></div>
+
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+
+  <script>
+    const SUPABASE_URL = 'https://ktmlvkocrbkjnihixock.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt0bWx2a29jcmJram5paGl4b2NrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ2NzgzMzgsImV4cCI6MjEwMDI1NDMzOH0.PCFlaGJFejfSR3VSHo_HjgNOL2Q7CrZZqN0HEgsev-0';
+
+    let supabaseClient;
+    let currentClinicId = null;
+    let pin = '';
+
+    const pinDisplay = document.getElementById('pinDisplay');
+    const resultEl = document.getElementById('result');
+    const clockInBtn = document.getElementById('clockInBtn');
+    const clockOutBtn = document.getElementById('clockOutBtn');
+
+    function updatePinDisplay() {
+      const dots = '•'.repeat(Math.max(0, 4 - pin.length)) + '•'.repeat(0);
+      pinDisplay.textContent = pin.length > 0
+        ? pin.split('').map(() => '●').join(' ') + ' '.repeat(0)
+        : '••••';
+    }
+
+    function showResult(html, state) {
+      resultEl.className = state;
+      resultEl.innerHTML = html;
+    }
+    function clearResultSoon() {
+      setTimeout(() => {
+        resultEl.className = '';
+        resultEl.innerHTML = '';
+        resultEl.style.display = 'none';
+        pin = '';
+        updatePinDisplay();
+      }, 4000);
+    }
+
+    async function hashPin(salt, clinicId, pinValue) {
+      const encoder = new TextEncoder();
+      const data = encoder.encode(`${salt}:${clinicId}:${pinValue}`);
+      const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+      return Array.from(new Uint8Array(hashBuffer))
+        .map(b => b.toString(16).padStart(2, '0'))
+        .join('');
+    }
+
+    async function findStaffByPin(enteredPin) {
+      const { data, error } = await supabaseClient
+        .from('staff')
+        .select('id, first_name, last_name, pin_hash, pin_salt, status, clinic_id')
+        .eq('status', 'active');
+
+      if (error) throw error;
+
+      for (const s of data) {
+        if (!s.pin_salt || !s.pin_hash) continue;
+        const candidateHash = await hashPin(s.pin_salt, s.clinic_id, enteredPin);
+        if (candidateHash === s.pin_hash) return s;
+      }
+      return null;
+    }
+
+    async function getLastEvent(staffId) {
+      const { data, error } = await supabaseClient
+        .from('attendance')
+        .select('event_type, event_time')
+        .eq('staff_id', staffId)
+        .order('event_time', { ascending: false })
+        .limit(1);
+
+      if (error) throw error;
+      return data && data.length > 0 ? data[0] : null;
+    }
+
+    async function recordEvent(staff, eventType) {
+      const { error } = await supabaseClient.from('attendance').insert({
+        id: crypto.randomUUID(),
+        staff_id: staff.id,
+        clinic_id: staff.clinic_id,
+        event_type: eventType,
+        event_time: new Date().toISOString(),
+        device_name: 'web-attendance-page'
+      });
+      if (error) throw error;
+    }
+
+    async function handleAction(requestedType) {
+      if (pin.length < 4) {
+        showResult('Enter your PIN first.', 'error');
+        clearResultSoon();
+        return;
+      }
+
+      showResult('Checking…', 'loading');
+      clockInBtn.disabled = true;
+      clockOutBtn.disabled = true;
+
+      try {
+        const staff = await findStaffByPin(pin);
+        if (!staff) {
+          showResult('PIN not recognized. Try again.', 'error');
+          clearResultSoon();
+          return;
+        }
+
+        const lastEvent = await getLastEvent(staff.id);
+        const lastType = lastEvent ? lastEvent.event_type : null;
+
+        if (requestedType === 'clock_in' && lastType === 'clock_in') {
+          showResult(`<div class="big-name">${staff.first_name} ${staff.last_name}</div>You're already clocked in.`, 'error');
+          clearResultSoon();
+          return;
+        }
+        if (requestedType === 'clock_out' && (lastType === 'clock_out' || lastType === null)) {
+          showResult(`<div class="big-name">${staff.first_name} ${staff.last_name}</div>You haven't clocked in yet.`, 'error');
+          clearResultSoon();
+          return;
+        }
+
+        await recordEvent(staff, requestedType);
+
+        const now = new Date();
+        const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        const greeting = requestedType === 'clock_in' ? 'Welcome' : 'Goodbye';
+        const actionLabel = requestedType === 'clock_in' ? 'Clock In recorded' : 'Clock Out recorded';
+
+        showResult(`<div class="big-name">${greeting}, ${staff.first_name} ${staff.last_name}</div>${actionLabel}<div class="time">${timeStr}</div>`, 'success');
+        clearResultSoon();
+
+      } catch (err) {
+        showResult(`Error: ${err.message || String(err)}`, 'error');
+        clearResultSoon();
+      } finally {
+        clockInBtn.disabled = false;
+        clockOutBtn.disabled = false;
+      }
+    }
+
+    document.getElementById('keypad').addEventListener('click', (e) => {
+      const btn = e.target.closest('button');
+      if (!btn) return;
+
+      if (btn.id === 'clearBtn') {
+        pin = '';
+        updatePinDisplay();
+        return;
+      }
+      if (btn.id === 'backBtn') {
+        pin = pin.slice(0, -1);
+        updatePinDisplay();
+        return;
+      }
+      const digit = btn.getAttribute('data-digit');
+      if (digit !== null && pin.length < 6) {
+        pin += digit;
+        updatePinDisplay();
+      }
+    });
+
+    clockInBtn.addEventListener('click', () => handleAction('clock_in'));
+    clockOutBtn.addEventListener('click', () => handleAction('clock_out'));
+
+    async function init() {
+      supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false }
+      });
+
+      const { data: sessionData } = await supabaseClient.auth.getSession();
+      if (!sessionData.session) {
+        document.getElementById('authGate').style.display = 'block';
+        return;
+      }
+
+      document.getElementById('kioskApp').style.display = 'block';
+      updatePinDisplay();
+    }
+
+    init();
+  </script>
+
+</body>
+</html>
