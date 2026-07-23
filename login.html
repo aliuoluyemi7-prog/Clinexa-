@@ -128,16 +128,16 @@
           return { success: false, error: 'Signup succeeded but no user ID returned. Check if email confirmation is required in Supabase settings.' };
         }
 
-        const clinicId = crypto.randomUUID();
-        const { error: clinicError } = await supabaseClient.from('clinics').insert({ id: clinicId, name: clinicName });
-        if (clinicError) return { success: false, error: `Clinic creation failed: ${clinicError.message}` };
-
-        const { error: userRowError } = await supabaseClient.from('users').insert({
-          id: userId, clinic_id: clinicId, email, role: 'owner'
+        // Call the database function that atomically creates the clinic
+        // and links this user as owner, bypassing the RLS chicken-and-egg
+        // problem of a brand-new user having no clinic_id yet.
+        const { data: rpcData, error: rpcError } = await supabaseClient.rpc('register_clinic', {
+          clinic_name: clinicName
         });
-        if (userRowError) return { success: false, error: `User record creation failed: ${userRowError.message}` };
 
-        return { success: true, data: { userId, clinicId, email } };
+        if (rpcError) return { success: false, error: `Clinic registration failed: ${rpcError.message}` };
+
+        return { success: true, data: rpcData };
       } catch (err) {
         return { success: false, error: err.message || 'Unexpected error during signup.' };
       }
