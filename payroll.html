@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Clinexa — Payroll</title>
+<style>
+  body {
+    font-family: -apple-system, system-ui, sans-serif;
+    max-width: 460px;
+    margin: 20px auto;
+    padding: 0 16px 60px;
+    color: #1a1a1a;
+  }
+  h1 { font-size: 20px; margin-bottom: 4px; }
+  h2 { font-size: 15px; color: #555; margin-top: 24px; }
+  select, input {
+    width: 100%;
+    padding: 10px;
+    margin: 6px 0;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 15px;
+    box-sizing: border-box;
+  }
+  button {
+    width: 100%;
+    padding: 12px;
+    margin-top: 10px;
+    border: none;
+    border-radius: 6px;
+    background: #2563eb;
+    color: white;
+    font-size: 15px;
+    font-weight: 600;
+  }
+  button.approve { background: #16a34a; }
+  button:disabled { background: #9ca3af; }
+  #result {
+    margin-top: 16px;
+    padding: 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    white-space: pre-wrap;
+    display: none;
+  }
+  #result.success { background: #dcfce7; color: #166534; display: block; }
+  #result.error { background: #fee2e2; color: #991b1b; display: block; }
+  #result.loading { background: #dbeafe; color: #1e40af; display: block; }
+
+  .staff-row {
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 12px;
+    margin-top: 10px;
+  }
+  .staff-row .name { font-weight: 600; font-size: 15px; }
+  .staff-row .attendance-ref {
+    font-size: 12px;
+    color: #1e40af;
+    background: #eff6ff;
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 8px;
+    margin-top: 4px;
+  }
+  .staff-row .field-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+    align-items: center;
+  }
+  .staff-row .field-row label {
+    font-size: 12px;
+    color: #666;
+    width: 100px;
+    flex-shrink: 0;
+  }
+  .staff-row .field-row input {
+    margin: 0;
+    padding: 6px;
+    font-size: 13px;
+  }
+  .staff-row .net-pay {
+    margin-top: 8px;
+    font-weight: 700;
+    font-size: 15px;
+    color: #166534;
+  }
+  .status-badge {
+    display: inline-block;
+    font-size: 12px;
+    padding: 3px 10px;
+    border-radius: 10px;
+    margin-left: 8px;
+  }
+  .status-badge.draft { background: #fef3c7; color: #92400e; }
+  .status-badge.approved { background: #dcfce7; color: #166534; }
+</style>
+</head>
+<body>
+
+  <h1>Clinexa — Payroll</h1>
+  <p style="color:#666; font-size:14px;">Monthly staff pay, with attendance shown for reference.</p>
+
+  <div id="authGate" style="display:none;">
+    <p>Log in first. <a href="login.html">Go to login</a></p>
+  </div>
+
+  <div id="result"></div>
+
+  <div id="payrollApp" style="display:none;">
+
+    <h2>Select Period</h2>
+    <select id="monthSelect"></select>
+    <select id="yearSelect"></select>
+    <button id="loadRunBtn">Load / Create Payroll Run</button>
+
+    <div id="runStatus"></div>
+    <div id="staffPayrollList"></div>
+
+    <button id="approveBtn" class="approve" style="display:none;">Approve Payroll Run</button>
+
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+
+  <script>
+    const SUPABASE_URL = 'https://ktmlvkocrbkjnihixock.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt0bWx2a29jcmJram5paGl4b2NrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ2NzgzMzgsImV4cCI6MjEwMDI1NDMzOH0.PCFlaGJFejfSR3VSHo_HjgNOL2Q7CrZZqN0HEgsev-0';
+
+    let supabaseClient;
+    let currentClinicId = null;
+    let currentUserId = null;
+    let currentRun = null;
+
+    const resultEl = document.getElementById('result');
+    function showResult(msg, state) {
+      resultEl.className = state;
+      resultEl.textContent = msg;
+    }
+
+    const monthSelect = document.getElementById('monthSelect');
+    const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    monthNames.forEach((m, i) => {
+      const opt = document.createElement('option');
+      opt.value = i + 1;
+      opt.textContent = m;
+      monthSelect.appendChild(opt);
+    });
+
+    const yearSelect = document.getElementById('yearSelect');
+    const thisYear = new Date().getFullYear();
+    for (let y = thisYear - 1; y <= thisYear + 1; y++) {
+      const opt = document.createElement('option');
+      opt.value = y;
+      opt.textContent = y;
+      if (y === thisYear) opt.selected = true;
+      yearSelect.appendChild(opt);
+    }
+    monthSelect.value = new Date().getMonth() + 1;
+
+    async function init() {
+      supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false }
+      });
+
+      const { data: sessionData } = await supabaseClient.auth.getSession();
+      if (!sessionData.session) {
+        document.getElementById('authGate').style.display = 'block';
+        return;
+      }
+
+      currentUserId = sessionData.session.user.id;
+      const { data: profile, error } = await supabaseClient
+        .from('users')
+        .select('clinic_id, role')
+        .eq('id', currentUserId)
+        .single();
+
+      if (error || !profile) {
+        showResult('Could not load your clinic profile.', 'error');
+        document.getElementById('authGate').style.display = 'block';
+        return;
+      }
+
+      currentClinicId = profile.clinic_id;
+      document.getElementById('payrollApp').style.display = 'block';
+    }
+
+    async function getAttendanceReference(staffId, startDate, endDate) {
+      const { data, error } = await supabaseClient
+        .from('attendance')
+        .select('id, event_type, event_time')
+        .eq('staff_id', staffId)
+        .eq('event_type', 'clock_in')
+        .gte('event_time', startDate)
+        .lt('event_time', endDate);
+
+      if (error) return null;
+      return data.length;
+    }
+
+    async function loadOrCreateRun() {
+      const month = parseInt(monthSelect.value);
+      const year = parseInt(yearSelect.value);
+
+      showResult('Loading payroll run…', 'loading');
+
+      let { data: existingRuns, error: fetchError } = await supabaseClient
+        .from('payroll_runs')
+        .select('*')
+        .eq('month', month)
+        .eq('year', year)
+        .limit(1);
+
+      if (fetchError) {
+        showResult(`Failed to check for existing run: ${fetchError.message}`, 'error');
+        return;
+      }
+
+      let run;
+      if (existingRuns && existingRuns.length > 0) {
+        run = existingRuns[0];
+      } else {
+        const { data: newRun, error: createError } = await supabaseClient
+          .from('payroll_runs')
+          .insert({
+            id: crypto.randomUUID(),
+            clinic_id: currentClinicId,
+            month, year,
+            status: 'draft',
+            generated_by: currentUserId,
+            generated_at: new Date().toISOString()
+          })
+          .select()
+          .single();
+
+        if (createError) {
+          showResult(`Failed to create payroll run: ${createError.message}`, 'error');
+          return;
+        }
+        run = newRun;
+      }
+
+      currentRun = run;
+      document.getElementById('runStatus').innerHTML =
+        `Period: ${monthNames[month - 1]} ${year} <span class="status-badge ${run.status}">${run.status}</span>`;
+
+      await loadStaffForRun(run);
+      resultEl.style.display = 'none';
+    }
+
+    async function loadStaffForRun(run) {
+      const listEl = document.getElementById('staffPayrollList');
+      listEl.innerHTML = 'Loading staff…';
+
+      const { data: staffList, error: staffError } = await supabaseClient
+        .from('staff')
+        .select('id, first_name, last_name, basic_salary, transport_allowance, housing_allowance, other_allowance')
+        .eq('status', 'active');
+
+      if (staffError) {
+        listEl.innerHTML = `<p style="color:#991b1b;">${staffError.message}</p>`;
+        return;
+      }
+
+      const { data: existingItems } = await supabaseClient
+        .from('payroll_items')
+        .select('*')
+        .eq('payroll_run_id', run.id);
+
+      const itemsByStaff = {};
+      (existingItems || []).forEach(item => { itemsByStaff[item.staff_id] = item; });
+
+      const startDate = `${run.year}-${String(run.month).padStart(2, '0')}-01`;
+      const endMonth = run.month === 12 ? 1 : run.month + 1;
+      const endYear = run.month === 12 ? run.year + 1 : run.year;
+      const endDate = `${endYear}-${String(endMonth).padStart(2, '0')}-01`;
+
+      listEl.innerHTML = '';
+
+      for (const staff of staffList) {
+        const daysPresent = await getAttendanceReference(staff.id, startDate, endDate);
+        const existingItem = itemsByStaff[staff.id];
+
+        const basic = parseFloat(staff.basic_salary || 0);
+        const allowances = parseFloat(staff.transport_allowance || 0) + parseFloat(staff.housing_allowance || 0) + parseFloat(staff.other_allowance || 0);
+        const bonus = existingItem ? parseFloat(existingItem.overtime || 0) : 0;
+        const deductions = existingItem ? parseFloat(existingItem.other_deductions || 0) : 0;
+
+        const grossPay = basic + allowances + bonus;
+        const netPay = grossPay - deductions;
+
+        const row = document.createElement('div');
+        row.className = 'staff-row';
+        row.dataset.staffId = staff.id;
+        row.dataset.basic = basic;
+        row.dataset.allowances = allowances;
+
+        row.innerHTML = `
+          <div class="name">${escapeHtml(staff.first_name)} ${escapeHtml(staff.last_name)}</div>
+          <div class="attendance-ref">${daysPresent === null ? 'Attendance unavailable' : daysPresent + ' day(s) clocked in this month'}</div>
+          <div class="field-row"><label>Basic + Allowances</label><span>₦${(basic + allowances).toFixed(2)}</span></div>
+          <div class="field-row"><label>Bonus</label><input type="number" class="bonus-input" value="${bonus}" ${run.status !== 'draft' ? 'disabled' : ''}></div>
+          <div class="field-row"><label>Deduction</label><input type="number" class="deduction-input" value="${deductions}" ${run.status !== 'draft' ? 'disabled' : ''}></div>
+          <div class="net-pay">Net Pay: ₦<span class="net-pay-value">${netPay.toFixed(2)}</span></div>
+        `;
+
+        listEl.appendChild(row);
+
+        const bonusInput = row.querySelector('.bonus-input');
+        const deductionInput = row.querySelector('.deduction-input');
+        const netPayValueEl = row.querySelector('.net-pay-value');
+
+        function recalc() {
+          const b = parseFloat(bonusInput.value || 0);
+          const d = parseFloat(deductionInput.value || 0);
+          const gp = basic + allowances + b;
+          netPayValueEl.textContent = (gp - d).toFixed(2);
+        }
+        bonusInput.addEventListener('input', recalc);
+        deductionInput.addEventListener('input', recalc);
+      }
+
+      document.getElementById('approveBtn').style.display = run.status === 'draft' ? 'block' : 'none';
+    }
+
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str || '';
+      return div.innerHTML;
+    }
+
+    document.getElementById('loadRunBtn').addEventListener('click', loadOrCreateRun);
+
+    document.getElementById('approveBtn').addEventListener('click', async () => {
+      if (!currentRun) return;
+      if (!confirm('Approve this payroll run? Once approved, amounts lock and further changes require a separate adjustment record.')) return;
+
+      showResult('Saving and approving…', 'loading');
+
+      const rows = document.querySelectorAll('.staff-row');
+      for (const row of rows) {
+        const staffId = row.dataset.staffId;
+        const basic = parseFloat(row.dataset.basic);
+        const allowances = parseFloat(row.dataset.allowances);
+        const bonus = parseFloat(row.querySelector('.bonus-input').value || 0);
+        const deduction = parseFloat(row.querySelector('.deduction-input').value || 0);
+        const grossPay = basic + allowances + bonus;
+        const netPay = grossPay - deduction;
+
+        const { data: existing } = await supabaseClient
+          .from('payroll_items')
+          .select('id')
+          .eq('payroll_run_id', currentRun.id)
+          .eq('staff_id', staffId)
+          .limit(1);
+
+        const itemData = {
+          payroll_run_id: currentRun.id,
+          staff_id: staffId,
+          basic_salary: basic,
+          allowances: allowances,
+          overtime: bonus,
+          other_deductions: deduction,
+          calculated_gross_pay: grossPay,
+          calculated_net_pay: netPay,
+          approved_gross_pay: grossPay,
+          approved_net_pay: netPay,
+          approved_by: currentUserId,
+          approved_at: new Date().toISOString()
+        };
+
+        if (existing && existing.length > 0) {
+          await supabaseClient.from('payroll_items').update(itemData).eq('id', existing[0].id);
+        } else {
+          await supabaseClient.from('payroll_items').insert({ id: crypto.randomUUID(), ...itemData });
+        }
+      }
+
+      const { error: approveError } = await supabaseClient
+        .from('payroll_runs')
+        .update({ status: 'approved', approved_by: currentUserId, approved_at: new Date().toISOString() })
+        .eq('id', currentRun.id);
+
+      if (approveError) {
+        showResult(`Failed to approve run: ${approveError.message}`, 'error');
+        return;
+      }
+
+      showResult('Payroll run approved and locked.', 'success');
+      currentRun.status = 'approved';
+      loadOrCreateRun();
+    });
+
+    init();
+  </script>
+
+</body>
+</html>
