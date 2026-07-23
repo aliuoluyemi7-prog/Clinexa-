@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Clinexa — Payslips</title>
+<style>
+  body {
+    font-family: -apple-system, system-ui, sans-serif;
+    max-width: 460px;
+    margin: 20px auto;
+    padding: 0 16px 60px;
+    color: #1a1a1a;
+  }
+  h1 { font-size: 20px; margin-bottom: 4px; }
+  h2 { font-size: 15px; color: #555; margin-top: 24px; }
+  select {
+    width: 100%;
+    padding: 10px;
+    margin: 6px 0;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 15px;
+    box-sizing: border-box;
+  }
+  button {
+    width: 100%;
+    padding: 12px;
+    margin-top: 10px;
+    border: none;
+    border-radius: 6px;
+    background: #2563eb;
+    color: white;
+    font-size: 15px;
+    font-weight: 600;
+  }
+  button.print-btn { background: #16a34a; }
+  #result {
+    margin-top: 16px;
+    padding: 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    white-space: pre-wrap;
+    display: none;
+  }
+  #result.success { background: #dcfce7; color: #166534; display: block; }
+  #result.error { background: #fee2e2; color: #991b1b; display: block; }
+  #result.loading { background: #dbeafe; color: #1e40af; display: block; }
+
+  .payslip {
+    border: 2px solid #1a1a1a;
+    border-radius: 10px;
+    padding: 20px;
+    margin-top: 16px;
+  }
+  .payslip .clinic-name { font-size: 18px; font-weight: 700; }
+  .payslip .period { color: #555; font-size: 14px; margin-bottom: 12px; }
+  .payslip .staff-name { font-size: 16px; font-weight: 600; margin-top: 12px; }
+  .payslip .staff-role { font-size: 13px; color: #666; margin-bottom: 12px; }
+  .payslip .line {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0;
+    border-bottom: 1px solid #eee;
+    font-size: 14px;
+  }
+  .payslip .line.total {
+    border-bottom: none;
+    border-top: 2px solid #1a1a1a;
+    margin-top: 8px;
+    padding-top: 10px;
+    font-weight: 700;
+    font-size: 16px;
+    color: #166534;
+  }
+  .payslip .attendance-note {
+    font-size: 12px;
+    color: #1e40af;
+    background: #eff6ff;
+    padding: 8px;
+    border-radius: 6px;
+    margin-top: 12px;
+  }
+
+  @media print {
+    body * { visibility: hidden; }
+    .payslip, .payslip * { visibility: visible; }
+    .payslip { position: absolute; top: 0; left: 0; width: 100%; border: none; }
+  }
+</style>
+</head>
+<body>
+
+  <h1>Clinexa — Payslips</h1>
+  <p style="color:#666; font-size:14px;">View and print individual staff payslips.</p>
+
+  <div id="authGate" style="display:none;">
+    <p>Log in first. <a href="login.html">Go to login</a></p>
+  </div>
+
+  <div id="result"></div>
+
+  <div id="payslipApp" style="display:none;">
+
+    <h2>Select Payroll Period</h2>
+    <select id="runSelect"><option value="">Loading periods…</option></select>
+
+    <h2>Select Staff</h2>
+    <select id="staffSelect"><option value="">Select a period first</option></select>
+
+    <button id="viewBtn">View Payslip</button>
+
+    <div id="payslipContainer"></div>
+
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+
+  <script>
+    const SUPABASE_URL = 'https://ktmlvkocrbkjnihixock.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt0bWx2a29jcmJram5paGl4b2NrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ2NzgzMzgsImV4cCI6MjEwMDI1NDMzOH0.PCFlaGJFejfSR3VSHo_HjgNOL2Q7CrZZqN0HEgsev-0';
+
+    let supabaseClient;
+    let currentClinicId = null;
+    let clinicName = '';
+
+    const resultEl = document.getElementById('result');
+    function showResult(msg, state) {
+      resultEl.className = state;
+      resultEl.textContent = msg;
+    }
+
+    const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+    async function init() {
+      supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false }
+      });
+
+      const { data: sessionData } = await supabaseClient.auth.getSession();
+      if (!sessionData.session) {
+        document.getElementById('authGate').style.display = 'block';
+        return;
+      }
+
+      const userId = sessionData.session.user.id;
+      const { data: profile, error } = await supabaseClient
+        .from('users')
+        .select('clinic_id')
+        .eq('id', userId)
+        .single();
+
+      if (error || !profile) {
+        showResult('Could not load your clinic profile.', 'error');
+        document.getElementById('authGate').style.display = 'block';
+        return;
+      }
+
+      currentClinicId = profile.clinic_id;
+
+      const { data: clinicRow } = await supabaseClient
+        .from('clinics')
+        .select('name')
+        .eq('id', currentClinicId)
+        .single();
+      clinicName = clinicRow ? clinicRow.name : 'Clinic';
+
+      document.getElementById('payslipApp').style.display = 'block';
+      loadRuns();
+    }
+
+    async function loadRuns() {
+      const { data: runs, error } = await supabaseClient
+        .from('payroll_runs')
+        .select('id, month, year, status')
+        .eq('status', 'approved')
+        .order('year', { ascending: false })
+        .order('month', { ascending: false });
+
+      const runSelect = document.getElementById('runSelect');
+
+      if (error || !runs || runs.length === 0) {
+        runSelect.innerHTML = '<option value="">No approved payroll runs yet</option>';
+        return;
+      }
+
+      runSelect.innerHTML = runs.map(r =>
+        `<option value="${r.id}">${monthNames[r.month - 1]} ${r.year}</option>`
+      ).join('');
+
+      loadStaffForRun(runs[0].id);
+      runSelect.addEventListener('change', (e) => loadStaffForRun(e.target.value));
+    }
+
+    async function loadStaffForRun(runId) {
+      const staffSelect = document.getElementById('staffSelect');
+      if (!runId) {
+        staffSelect.innerHTML = '<option value="">No period selected</option>';
+        return;
+      }
+
+      const { data: items, error } = await supabaseClient
+        .from('payroll_items')
+        .select('staff_id, staff:staff_id (first_name, last_name)')
+        .eq('payroll_run_id', runId);
+
+      if (error || !items || items.length === 0) {
+        staffSelect.innerHTML = '<option value="">No staff in this run</option>';
+        return;
+      }
+
+      staffSelect.innerHTML = items.map(item =>
+        `<option value="${item.staff_id}">${item.staff ? item.staff.first_name + ' ' + item.staff.last_name : 'Unknown'}</option>`
+      ).join('');
+    }
+
+    document.getElementById('viewBtn').addEventListener('click', async () => {
+      const runId = document.getElementById('runSelect').value;
+      const staffId = document.getElementById('staffSelect').value;
+
+      if (!runId || !staffId) {
+        showResult('Select a payroll period and staff member.', 'error');
+        return;
+      }
+
+      showResult('Loading payslip…', 'loading');
+
+      const { data: run, error: runError } = await supabaseClient
+        .from('payroll_runs')
+        .select('*')
+        .eq('id', runId)
+        .single();
+
+      const { data: item, error: itemError } = await supabaseClient
+        .from('payroll_items')
+        .select('*, staff:staff_id (first_name, last_name, position)')
+        .eq('payroll_run_id', runId)
+        .eq('staff_id', staffId)
+        .single();
+
+      if (runError || itemError || !item) {
+        showResult('Could not load payslip data.', 'error');
+        return;
+      }
+
+      const startDate = `${run.year}-${String(run.month).padStart(2, '0')}-01`;
+      const endMonth = run.month === 12 ? 1 : run.month + 1;
+      const endYear = run.month === 12 ? run.year + 1 : run.year;
+      const endDate = `${endYear}-${String(endMonth).padStart(2, '0')}-01`;
+
+      const { data: attendanceData } = await supabaseClient
+        .from('attendance')
+        .select('id')
+        .eq('staff_id', staffId)
+        .eq('event_type', 'clock_in')
+        .gte('event_time', startDate)
+        .lt('event_time', endDate);
+
+      const daysPresent = attendanceData ? attendanceData.length : 0;
+
+      resultEl.style.display = 'none';
+
+      const container = document.getElementById('payslipContainer');
+      container.innerHTML = `
+        <div class="payslip">
+          <div class="clinic-name">${escapeHtml(clinicName)}</div>
+          <div class="period">Payslip for ${monthNames[run.month - 1]} ${run.year}</div>
+
+          <div class="staff-name">${escapeHtml(item.staff.first_name)} ${escapeHtml(item.staff.last_name)}</div>
+          <div class="staff-role">${escapeHtml(item.staff.position || '')}</div>
+
+          <div class="line"><span>Basic Salary</span><span>₦${parseFloat(item.basic_salary || 0).toFixed(2)}</span></div>
+          <div class="line"><span>Allowances</span><span>₦${parseFloat(item.allowances || 0).toFixed(2)}</span></div>
+          <div class="line"><span>Bonus</span><span>₦${parseFloat(item.overtime || 0).toFixed(2)}</span></div>
+          <div class="line"><span>Deductions</span><span>-₦${parseFloat(item.other_deductions || 0).toFixed(2)}</span></div>
+          <div class="line total"><span>Net Pay</span><span>₦${parseFloat(item.approved_net_pay || item.calculated_net_pay || 0).toFixed(2)}</span></div>
+
+          <div class="attendance-note">Reference: ${daysPresent} day(s) clocked in during this period (informational only — not used in this calculation)</div>
+        </div>
+        <button class="print-btn" onclick="window.print()">Print / Save as PDF</button>
+      `;
+    });
+
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str || '';
+      return div.innerHTML;
+    }
+
+    init();
+  </script>
+
+</body>
+</html>
