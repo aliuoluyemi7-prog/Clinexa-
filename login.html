@@ -35,6 +35,7 @@
     font-weight: 600;
   }
   button:active { opacity: 0.8; }
+  button:disabled { background: #9ca3af; }
   #result {
     margin-top: 20px;
     padding: 12px;
@@ -42,10 +43,10 @@
     font-size: 13px;
     white-space: pre-wrap;
     word-break: break-word;
-    display: none;
   }
-  #result.success { background: #dcfce7; color: #166534; display: block; }
-  #result.error { background: #fee2e2; color: #991b1b; display: block; }
+  #result.success { background: #dcfce7; color: #166534; }
+  #result.error { background: #fee2e2; color: #991b1b; }
+  #result.loading { background: #dbeafe; color: #1e40af; }
 </style>
 </head>
 <body>
@@ -53,29 +54,35 @@
   <h1>Clinexa</h1>
   <p style="color:#666; font-size:14px;">Test page — signup, login, session check</p>
 
-  <h2>Owner Sign Up</h2>
+  <div id="result" class="loading">Loading Supabase library… please wait.</div>
+
+  <h2>Register Clinic</h2>
   <input type="text" id="clinicName" placeholder="Clinic name (e.g. Wellspring Clinic)">
   <input type="email" id="signupEmail" placeholder="Email">
   <input type="password" id="signupPassword" placeholder="Password (min 6 chars)">
-  <button id="signupBtn">Create Owner Account</button>
+  <button id="signupBtn" disabled>Register Clinic</button>
 
   <h2>Login</h2>
   <input type="email" id="loginEmail" placeholder="Email">
   <input type="password" id="loginPassword" placeholder="Password">
-  <button id="loginBtn">Log In</button>
+  <button id="loginBtn" disabled>Log In</button>
 
   <h2>Session</h2>
-  <button id="checkSessionBtn">Check Current Session</button>
-  <button id="logoutBtn" style="background:#6b7280;">Log Out</button>
+  <button id="checkSessionBtn" disabled>Check Current Session</button>
+  <button id="logoutBtn" disabled style="background:#6b7280;">Log Out</button>
 
-  <div id="result"></div>
+  <!-- Classic script tag (not type="module") — loads the Supabase UMD build.
+       More reliable than ES module CDN imports on slow/unstable connections,
+       and gives us a plain global `supabase` object to work with. -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 
-  <script type="module">
+  <script>
     const resultEl = document.getElementById('result');
 
-    function showResult(obj, isError = false) {
-      resultEl.className = isError ? 'error' : 'success';
-      resultEl.textContent = JSON.stringify(obj, null, 2);
+    function showResult(obj, state) {
+      // state: 'success' | 'error' | 'loading'
+      resultEl.className = state;
+      resultEl.textContent = typeof obj === 'string' ? obj : JSON.stringify(obj, null, 2);
     }
 
     window.addEventListener('error', (e) => {
@@ -83,25 +90,93 @@
         uncaught_error: e.message,
         filename: e.filename,
         line: e.lineno
-      }, true);
-    });
-    window.addEventListener('unhandledrejection', (e) => {
-      showResult({ unhandled_promise_rejection: String(e.reason) }, true);
+      }, 'error');
     });
 
-    let signUpOwner, login, logout, getSession, getCurrentUserProfile;
+    // ---- Supabase client setup ----
+    const SUPABASE_URL = 'https://ktmlvkocrbkjnihixock.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt0bWx2a29jcmJram5paGl4b2NrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ2NzgzMzgsImV4cCI6MjEwMDI1NDMzOH0.PCFlaGJFejfSR3VSHo_HjgNOL2Q7CrZZqN0HEgsev-0';
+
+    let supabaseClient;
 
     try {
-      const mod = await import('./services/auth.js');
-      signUpOwner = mod.signUpOwner;
-      login = mod.login;
-      logout = mod.logout;
-      getSession = mod.getSession;
-      getCurrentUserProfile = mod.getCurrentUserProfile;
-      showResult({ status: 'Module loaded successfully. Ready to test.' });
+      // The UMD build exposes a global `supabase` object with `.createClient`
+      supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false }
+      });
+      showResult('Supabase loaded successfully. Ready to test.', 'success');
+
+      // Enable buttons now that the client is ready
+      document.getElementById('signupBtn').disabled = false;
+      document.getElementById('loginBtn').disabled = false;
+      document.getElementById('checkSessionBtn').disabled = false;
+      document.getElementById('logoutBtn').disabled = false;
+
     } catch (err) {
-      showResult({ module_load_failed: err.message || String(err) }, true);
+      showResult({ supabase_init_failed: err.message || String(err) }, 'error');
     }
+
+    // ---- Auth functions (inlined, no separate service files needed) ----
+
+    async function signUpOwner({ email, password, clinicName }) {
+      try {
+        const { data: authData, error: authError } = await supabaseClient.auth.signUp({ email, password });
+        if (authError) return { success: false, error: authError.message };
+
+        const userId = authData.user?.id;
+        if (!userId) {
+          return { success: false, error: 'Signup succeeded but no user ID returned. Check if email confirmation is required in Supabase settings.' };
+        }
+
+        const clinicId = crypto.randomUUID();
+        const { error: clinicError } = await supabaseClient.from('clinics').insert({ id: clinicId, name: clinicName });
+        if (clinicError) return { success: false, error: `Clinic creation failed: ${clinicError.message}` };
+
+        const { error: userRowError } = await supabaseClient.from('users').insert({
+          id: userId, clinic_id: clinicId, email, role: 'owner'
+        });
+        if (userRowError) return { success: false, error: `User record creation failed: ${userRowError.message}` };
+
+        return { success: true, data: { userId, clinicId, email } };
+      } catch (err) {
+        return { success: false, error: err.message || 'Unexpected error during signup.' };
+      }
+    }
+
+    async function login({ email, password }) {
+      const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+      if (error) return { success: false, error: error.message };
+      return { success: true, data };
+    }
+
+    async function logout() {
+      const { error } = await supabaseClient.auth.signOut();
+      if (error) return { success: false, error: error.message };
+      return { success: true };
+    }
+
+    async function getSession() {
+      const { data, error } = await supabaseClient.auth.getSession();
+      if (error) return { success: false, error: error.message };
+      return { success: true, session: data.session };
+    }
+
+    async function getCurrentUserProfile() {
+      const { data: sessionData, error: sessionError } = await supabaseClient.auth.getSession();
+      if (sessionError || !sessionData.session) return { success: false, error: 'No active session.' };
+
+      const authUserId = sessionData.session.user.id;
+      const { data, error } = await supabaseClient
+        .from('users')
+        .select('id, clinic_id, staff_id, email, role')
+        .eq('id', authUserId)
+        .single();
+
+      if (error) return { success: false, error: error.message };
+      return { success: true, profile: data };
+    }
+
+    // ---- Button wiring ----
 
     document.getElementById('signupBtn').addEventListener('click', async () => {
       const clinicName = document.getElementById('clinicName').value.trim();
@@ -109,31 +184,34 @@
       const password = document.getElementById('signupPassword').value;
 
       if (!clinicName || !email || !password) {
-        showResult({ error: 'Fill in clinic name, email, and password.' }, true);
+        showResult({ error: 'Fill in clinic name, email, and password.' }, 'error');
         return;
       }
 
+      showResult('Creating account…', 'loading');
       const res = await signUpOwner({ email, password, clinicName });
-      showResult(res, !res.success);
+      showResult(res, res.success ? 'success' : 'error');
     });
 
     document.getElementById('loginBtn').addEventListener('click', async () => {
       const email = document.getElementById('loginEmail').value.trim();
       const password = document.getElementById('loginPassword').value;
 
+      showResult('Logging in…', 'loading');
       const res = await login({ email, password });
-      showResult(res, !res.success);
+      showResult(res, res.success ? 'success' : 'error');
     });
 
     document.getElementById('checkSessionBtn').addEventListener('click', async () => {
+      showResult('Checking session…', 'loading');
       const sessionRes = await getSession();
       const profileRes = await getCurrentUserProfile();
-      showResult({ session: sessionRes, profile: profileRes });
+      showResult({ session: sessionRes, profile: profileRes }, 'success');
     });
 
     document.getElementById('logoutBtn').addEventListener('click', async () => {
       const res = await logout();
-      showResult(res, !res.success);
+      showResult(res, res.success ? 'success' : 'error');
     });
   </script>
 
