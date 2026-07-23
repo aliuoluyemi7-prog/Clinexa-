@@ -71,13 +71,36 @@
   <div id="result"></div>
 
   <script type="module">
-    import { signUpOwner, login, logout, getSession, getCurrentUserProfile } from './services/auth.js';
-
     const resultEl = document.getElementById('result');
 
     function showResult(obj, isError = false) {
       resultEl.className = isError ? 'error' : 'success';
       resultEl.textContent = JSON.stringify(obj, null, 2);
+    }
+
+    window.addEventListener('error', (e) => {
+      showResult({
+        uncaught_error: e.message,
+        filename: e.filename,
+        line: e.lineno
+      }, true);
+    });
+    window.addEventListener('unhandledrejection', (e) => {
+      showResult({ unhandled_promise_rejection: String(e.reason) }, true);
+    });
+
+    let signUpOwner, login, logout, getSession, getCurrentUserProfile;
+
+    try {
+      const mod = await import('./services/auth.js');
+      signUpOwner = mod.signUpOwner;
+      login = mod.login;
+      logout = mod.logout;
+      getSession = mod.getSession;
+      getCurrentUserProfile = mod.getCurrentUserProfile;
+      showResult({ status: 'Module loaded successfully. Ready to test.' });
+    } catch (err) {
+      showResult({ module_load_failed: err.message || String(err) }, true);
     }
 
     document.getElementById('signupBtn').addEventListener('click', async () => {
