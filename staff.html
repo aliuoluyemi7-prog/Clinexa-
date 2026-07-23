@@ -96,11 +96,39 @@
       <option value="Other">Other</option>
     </select>
     <input type="text" id="staffDepartment" placeholder="Department (e.g. Outpatient)">
+    <input type="number" id="staffBasicSalary" placeholder="Basic Salary (₦)" min="0">
+    <input type="number" id="staffTransport" placeholder="Transport Allowance (₦)" min="0">
+    <input type="number" id="staffHousing" placeholder="Housing Allowance (₦)" min="0">
+    <input type="number" id="staffOtherAllowance" placeholder="Other Allowance (₦)" min="0">
     <input type="text" id="staffPin" placeholder="4-digit PIN" maxlength="6" inputmode="numeric">
     <button id="addStaffBtn" disabled>Add Staff</button>
 
     <h2>Staff List</h2>
     <input type="text" id="searchBox" placeholder="Search by name or role…">
+
+    <div id="editPanel" style="display:none; border: 2px solid #2563eb; border-radius: 8px; padding: 12px; margin-top: 12px;">
+      <h2 style="margin-top:0;">Edit Staff</h2>
+      <input type="text" id="editName" placeholder="Full name">
+      <input type="text" id="editPhone" placeholder="Phone (optional)">
+      <select id="editRole">
+        <option value="">Select role</option>
+        <option value="Doctor">Doctor</option>
+        <option value="Nurse">Nurse</option>
+        <option value="Receptionist">Receptionist</option>
+        <option value="Lab">Lab</option>
+        <option value="Pharmacy">Pharmacy</option>
+        <option value="Admin">Admin</option>
+        <option value="Other">Other</option>
+      </select>
+      <input type="number" id="editBasicSalary" placeholder="Basic Salary (₦)" min="0">
+      <input type="number" id="editTransport" placeholder="Transport Allowance (₦)" min="0">
+      <input type="number" id="editHousing" placeholder="Housing Allowance (₦)" min="0">
+      <input type="number" id="editOtherAllowance" placeholder="Other Allowance (₦)" min="0">
+      <input type="text" id="editNewPin" placeholder="New PIN (leave blank to keep current)" maxlength="6" inputmode="numeric">
+      <button id="saveEditBtn">Save Changes</button>
+      <button id="cancelEditBtn" class="secondary">Cancel</button>
+    </div>
+
     <div id="staffList"></div>
 
   </div>
@@ -228,12 +256,42 @@
           <div class="meta">${escapeHtml(s.position || 'No role set')}${s.phone ? ' · ' + escapeHtml(s.phone) : ''}</div>
           <span class="badge ${s.status}">${s.status}</span>
           <div class="actions">
+            <button class="secondary edit-staff" data-id="${s.id}">Edit</button>
             <button class="secondary toggle-status" data-id="${s.id}" data-status="${s.status}">
               ${s.status === 'active' ? 'Deactivate' : 'Activate'}
             </button>
           </div>
         </div>
       `).join('');
+
+      document.querySelectorAll('.edit-staff').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const id = btn.getAttribute('data-id');
+          const { data: staffRow, error } = await supabaseClient
+            .from('staff')
+            .select('*')
+            .eq('id', id)
+            .single();
+
+          if (error || !staffRow) {
+            showResult({ error: 'Could not load staff details.' }, 'error');
+            return;
+          }
+
+          document.getElementById('editPanel').dataset.staffId = id;
+          document.getElementById('editName').value = `${staffRow.first_name} ${staffRow.last_name === '-' ? '' : staffRow.last_name}`.trim();
+          document.getElementById('editPhone').value = staffRow.phone || '';
+          document.getElementById('editRole').value = staffRow.position || '';
+          document.getElementById('editBasicSalary').value = staffRow.basic_salary || '';
+          document.getElementById('editTransport').value = staffRow.transport_allowance || '';
+          document.getElementById('editHousing').value = staffRow.housing_allowance || '';
+          document.getElementById('editOtherAllowance').value = staffRow.other_allowance || '';
+          document.getElementById('editNewPin').value = '';
+
+          document.getElementById('editPanel').style.display = 'block';
+          document.getElementById('editPanel').scrollIntoView({ behavior: 'smooth' });
+        });
+      });
 
       document.querySelectorAll('.toggle-status').forEach(btn => {
         btn.addEventListener('click', async () => {
@@ -266,6 +324,10 @@
       const phone = document.getElementById('staffPhone').value.trim();
       const role = document.getElementById('staffRole').value;
       const department = document.getElementById('staffDepartment').value.trim();
+      const basicSalary = parseFloat(document.getElementById('staffBasicSalary').value) || 0;
+      const transport = parseFloat(document.getElementById('staffTransport').value) || 0;
+      const housing = parseFloat(document.getElementById('staffHousing').value) || 0;
+      const otherAllowance = parseFloat(document.getElementById('staffOtherAllowance').value) || 0;
       const pin = document.getElementById('staffPin').value.trim();
 
       if (!fullName || !role || !pin) {
@@ -302,6 +364,10 @@
           last_name: lastName,
           phone: phone || null,
           position: role,
+          basic_salary: basicSalary,
+          transport_allowance: transport,
+          housing_allowance: housing,
+          other_allowance: otherAllowance,
           pin_hash: pinHash,
           pin_salt: salt,
           status: 'active'
@@ -318,8 +384,83 @@
         document.getElementById('staffPhone').value = '';
         document.getElementById('staffRole').value = '';
         document.getElementById('staffDepartment').value = '';
+        document.getElementById('staffBasicSalary').value = '';
+        document.getElementById('staffTransport').value = '';
+        document.getElementById('staffHousing').value = '';
+        document.getElementById('staffOtherAllowance').value = '';
         document.getElementById('staffPin').value = '';
 
+        loadStaffList();
+      } catch (err) {
+        showResult({ error: err.message || String(err) }, 'error');
+      }
+    });
+
+    document.getElementById('cancelEditBtn').addEventListener('click', () => {
+      document.getElementById('editPanel').style.display = 'none';
+    });
+
+    document.getElementById('saveEditBtn').addEventListener('click', async () => {
+      const staffId = document.getElementById('editPanel').dataset.staffId;
+      const fullName = document.getElementById('editName').value.trim();
+      const phone = document.getElementById('editPhone').value.trim();
+      const role = document.getElementById('editRole').value;
+      const basicSalary = parseFloat(document.getElementById('editBasicSalary').value) || 0;
+      const transport = parseFloat(document.getElementById('editTransport').value) || 0;
+      const housing = parseFloat(document.getElementById('editHousing').value) || 0;
+      const otherAllowance = parseFloat(document.getElementById('editOtherAllowance').value) || 0;
+      const newPin = document.getElementById('editNewPin').value.trim();
+
+      if (!fullName || !role) {
+        showResult({ error: 'Name and role are required.' }, 'error');
+        return;
+      }
+
+      showResult('Saving…', 'loading');
+
+      try {
+        const nameParts = fullName.split(' ');
+        const firstName = nameParts[0];
+        const lastName = nameParts.slice(1).join(' ') || '-';
+
+        const updateData = {
+          first_name: firstName,
+          last_name: lastName,
+          phone: phone || null,
+          position: role,
+          basic_salary: basicSalary,
+          transport_allowance: transport,
+          housing_allowance: housing,
+          other_allowance: otherAllowance
+        };
+
+        if (newPin) {
+          if (!/^\d{4,6}$/.test(newPin)) {
+            showResult({ error: 'New PIN must be 4 to 6 digits.' }, 'error');
+            return;
+          }
+          const taken = await isPinTaken(currentClinicId, newPin, staffId);
+          if (taken) {
+            showResult({ error: 'That PIN is already in use by another active staff member.' }, 'error');
+            return;
+          }
+          const newSalt = crypto.randomUUID();
+          updateData.pin_salt = newSalt;
+          updateData.pin_hash = await hashPin(newSalt, currentClinicId, newPin);
+        }
+
+        const { error } = await supabaseClient
+          .from('staff')
+          .update(updateData)
+          .eq('id', staffId);
+
+        if (error) {
+          showResult({ error: `Failed to save: ${error.message}` }, 'error');
+          return;
+        }
+
+        showResult({ success: true, updated: fullName }, 'success');
+        document.getElementById('editPanel').style.display = 'none';
         loadStaffList();
       } catch (err) {
         showResult({ error: err.message || String(err) }, 'error');
