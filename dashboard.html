@@ -4,10 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
 <title>Clinexa — Dashboard</title>
-<link rel="icon" href="favicon.ico">
 <link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="theme-color" content="#2954E5">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <style>
   :root{
     --ink:#12213D;
@@ -29,12 +31,8 @@
     font-family:'Manrope',sans-serif;
     -webkit-font-smoothing:antialiased;
   }
-  h1,h2,h3,.num{
-    font-family:'Space Grotesk',sans-serif;
-    letter-spacing:-0.01em;
-  }
+  h1,h2,h3{ font-family:'Space Grotesk',sans-serif; letter-spacing:-0.01em; }
 
-  /* Header with pulse signature */
   header{
     background:linear-gradient(180deg,var(--blue-deep) 0%, var(--blue) 100%);
     color:#fff;
@@ -42,149 +40,47 @@
     position:relative;
     overflow:hidden;
   }
-  .pulse-line{
-    position:absolute;
-    bottom:0; left:0; right:0;
-    height:26px;
-    opacity:0.35;
-  }
-  .top-row{
-    display:flex;
-    justify-content:space-between;
-    align-items:flex-start;
-  }
-  .brand{
-    display:flex;
-    align-items:center;
-    gap:8px;
-    font-family:'Space Grotesk',sans-serif;
-    font-weight:700;
-    font-size:18px;
-  }
-  .brand .dot{
-    width:9px;height:9px;border-radius:50%;
-    background:var(--teal);
-    box-shadow:0 0 0 4px rgba(14,165,160,0.25);
-  }
-  .clinic-name{
-    font-size:22px;
-    font-weight:600;
-    margin-top:14px;
-  }
-  .clinic-sub{
-    font-size:13px;
-    opacity:0.8;
-    margin-top:2px;
-  }
-  .signout{
-    background:rgba(255,255,255,0.14);
-    border:1px solid rgba(255,255,255,0.25);
-    color:#fff;
-    font-size:12px;
-    font-weight:600;
-    padding:7px 12px;
-    border-radius:20px;
-    cursor:pointer;
-  }
+  .pulse-line{ position:absolute; bottom:0; left:0; right:0; height:26px; opacity:0.35; }
+  .top-row{ display:flex; justify-content:space-between; align-items:flex-start; }
+  .brand{ display:flex; align-items:center; gap:8px; font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:18px; }
+  .brand .dot{ width:9px;height:9px;border-radius:50%; background:var(--teal); box-shadow:0 0 0 4px rgba(14,165,160,0.25); }
+  .clinic-name{ font-size:22px; font-weight:600; margin-top:14px; }
+  .clinic-sub{ font-size:13px; opacity:0.8; margin-top:2px; }
+  .signout{ background:rgba(255,255,255,0.14); border:1px solid rgba(255,255,255,0.25); color:#fff; font-size:12px; font-weight:600; padding:7px 12px; border-radius:20px; }
 
-  main{
-    padding:0 16px 90px;
-    margin-top:-22px;
-  }
+  main{ padding:0 16px 90px; margin-top:-22px; max-width:520px; margin-left:auto; margin-right:auto; }
 
-  /* Stat strip */
-  .stats{
-    display:grid;
-    grid-template-columns:repeat(2,1fr);
-    gap:10px;
-    margin-bottom:20px;
-  }
-  .stat-card{
-    background:var(--card);
-    border:1px solid var(--line);
-    border-radius:var(--radius);
-    padding:14px 14px 12px;
-    box-shadow:0 6px 16px rgba(18,33,61,0.05);
-  }
-  .stat-label{
-    font-size:11.5px;
-    color:var(--ink-soft);
-    font-weight:600;
-    text-transform:uppercase;
-    letter-spacing:0.04em;
-  }
-  .stat-num{
-    font-size:26px;
-    font-weight:700;
-    margin-top:4px;
-  }
-  .stat-num.attn{ color:var(--amber); }
-  .stat-num.ok{ color:var(--teal); }
+  #result{ margin:16px 0; padding:12px; border-radius:10px; font-size:13px; white-space:pre-wrap; display:none; }
+  #result.error{ background:#fee2e2; color:#991b1b; display:block; }
+  #result.loading{ background:#dbeafe; color:#1e40af; display:block; }
+  #authGate{ background:var(--card); border:1px solid var(--line); border-radius:var(--radius); padding:18px; text-align:center; margin-top:16px; }
+  #authGate a{ color:var(--blue); font-weight:600; }
 
-  section h2{
-    font-size:15px;
-    font-weight:600;
-    color:var(--ink);
-    margin:22px 2px 10px;
-  }
+  .stats{ display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin-bottom:8px; }
+  .stat-card{ background:var(--card); border:1px solid var(--line); border-radius:var(--radius); padding:14px 14px 12px; box-shadow:0 6px 16px rgba(18,33,61,0.05); }
+  .stat-label{ font-size:11px; color:var(--ink-soft); font-weight:600; text-transform:uppercase; letter-spacing:0.04em; }
+  .stat-num{ font-size:24px; font-weight:700; margin-top:4px; }
 
-  /* Department grid */
-  .dept-grid{
-    display:grid;
-    grid-template-columns:repeat(2,1fr);
-    gap:10px;
-  }
-  .dept-card{
-    background:var(--card);
-    border:1px solid var(--line);
-    border-radius:var(--radius);
-    padding:14px;
-    text-decoration:none;
-    color:var(--ink);
-    display:block;
-    transition:transform .12s ease, box-shadow .12s ease;
-  }
-  .dept-card:active{
-    transform:scale(0.98);
-  }
-  .dept-name{
-    font-weight:700;
-    font-size:14.5px;
-  }
-  .dept-meta{
-    font-size:12px;
-    color:var(--ink-soft);
-    margin-top:4px;
-  }
-  .dept-meta.attn{ color:var(--amber); font-weight:600; }
+  section h2{ font-size:15px; font-weight:600; color:var(--ink); margin:24px 2px 10px; }
 
-  /* Empty state */
-  .empty{
-    background:var(--card);
-    border:1px dashed var(--line);
-    border-radius:var(--radius);
-    padding:22px 16px;
-    text-align:center;
-    color:var(--ink-soft);
-    font-size:13.5px;
-  }
+  .row-card{ background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px 14px; margin-top:8px; display:flex; justify-content:space-between; align-items:center; font-size:14px; }
+  .row-name{ font-weight:700; }
+  .row-sub{ color:var(--ink-soft); font-size:12px; margin-top:2px; }
+  .badge{ font-size:11px; padding:3px 9px; border-radius:20px; font-weight:700; }
+  .badge.clock_in{ background:#DCFCE7; color:#166534; }
+  .badge.clock_out{ background:#FEE2E2; color:#991B1B; }
+  .badge.draft{ background:#FEF3C7; color:#92400E; }
+  .badge.approved{ background:#DCFCE7; color:#166534; }
+  .row-card a{ font-size:12px; color:var(--blue); font-weight:700; text-decoration:none; }
+  .empty-note{ font-size:13px; color:var(--ink-soft); padding:12px 2px; }
 
-  footer{
-    position:fixed;
-    bottom:0; left:0; right:0;
-    background:#fff;
-    border-top:1px solid var(--line);
-    padding:10px 16px calc(10px + env(safe-area-inset-bottom));
-    font-size:11.5px;
-    color:var(--ink-soft);
-    text-align:center;
-  }
+  .dept-grid{ display:grid; grid-template-columns:repeat(2,1fr); gap:10px; }
+  .dept-card{ background:var(--card); border:1px solid var(--line); border-radius:var(--radius); padding:14px; text-decoration:none; color:var(--ink); display:block; }
+  .dept-card:active{ transform:scale(0.98); }
+  .dept-name{ font-weight:700; font-size:14.5px; }
+  .dept-meta{ font-size:12px; color:var(--ink-soft); margin-top:4px; }
 
-  @media(min-width:640px){
-    .stats{grid-template-columns:repeat(4,1fr);}
-    .dept-grid{grid-template-columns:repeat(4,1fr);}
-    main{max-width:900px;margin-left:auto;margin-right:auto;margin-top:-22px;}
-  }
+  footer{ position:fixed; bottom:0; left:0; right:0; background:#fff; border-top:1px solid var(--line); padding:10px 16px calc(10px + env(safe-area-inset-bottom)); font-size:11.5px; color:var(--ink-soft); text-align:center; }
 </style>
 </head>
 <body>
@@ -194,131 +90,284 @@
     <div class="brand"><span class="dot"></span>Clinexa</div>
     <button class="signout" id="signOutBtn">Sign out</button>
   </div>
-  <div class="clinic-name" id="clinicName">Loading clinic…</div>
+  <div class="clinic-name" id="welcomeLine">Loading clinic…</div>
   <div class="clinic-sub" id="todayDate"></div>
-
   <svg class="pulse-line" viewBox="0 0 400 26" preserveAspectRatio="none">
-    <polyline points="0,13 60,13 75,4 90,22 105,13 400,13"
-      fill="none" stroke="#ffffff" stroke-width="2" />
+    <polyline points="0,13 60,13 75,4 90,22 105,13 400,13" fill="none" stroke="#ffffff" stroke-width="2" />
   </svg>
 </header>
 
 <main>
-  <div class="stats">
-    <div class="stat-card">
-      <div class="stat-label">In clinic now</div>
-      <div class="stat-num" id="statInHouse">–</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">Registered patients</div>
-      <div class="stat-num" id="statPatients">–</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">Active staff</div>
-      <div class="stat-num" id="statStaff">–</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">Needs attention</div>
-      <div class="stat-num attn" id="statAttention">–</div>
-    </div>
+  <div id="authGate" style="display:none;">
+    <p>Log in first. <a href="login.html">Go to login</a></p>
   </div>
 
-  <section>
-    <h2>Enter a department</h2>
-    <div class="dept-grid" id="deptGrid">
-      <!-- populated by JS -->
-    </div>
-  </section>
+  <div id="result"></div>
 
-  <section>
-    <h2>Quick access</h2>
-    <div class="dept-grid">
-      <a class="dept-card" href="staff.html">
-        <div class="dept-name">Staff</div>
-        <div class="dept-meta">Manage clinic team</div>
-      </a>
-      <a class="dept-card" href="attendance.html">
-        <div class="dept-name">Attendance</div>
-        <div class="dept-meta">Today's check-ins</div>
-      </a>
-      <a class="dept-card" href="payroll.html">
-        <div class="dept-name">Payroll</div>
-        <div class="dept-meta">Run this month's pay</div>
-      </a>
-      <a class="dept-card" href="payslip.html">
-        <div class="dept-name">Payslips</div>
-        <div class="dept-meta">View & download</div>
-      </a>
+  <div id="dashboardApp" style="display:none;">
+
+    <div class="stats">
+      <div class="stat-card">
+        <div class="stat-label">Total Staff</div>
+        <div class="stat-num" id="kpiTotalStaff">–</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Present Today</div>
+        <div class="stat-num" id="kpiPresentToday">–</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Approved Payroll</div>
+        <div class="stat-num" id="kpiMonthPayroll">–</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Pending Runs</div>
+        <div class="stat-num" id="kpiPendingRuns">–</div>
+      </div>
     </div>
-  </section>
+
+    <section>
+      <h2>Today's Attendance</h2>
+      <div id="attendanceFeed"></div>
+    </section>
+
+    <section>
+      <h2>Recent Payroll</h2>
+      <div id="payrollFeed"></div>
+    </section>
+
+    <section>
+      <h2>Quick Actions</h2>
+      <div class="dept-grid">
+        <a class="dept-card" href="staff.html">
+          <div class="dept-name">Add Staff</div>
+          <div class="dept-meta">Manage clinic team</div>
+        </a>
+        <a class="dept-card" href="attendance.html">
+          <div class="dept-name">Attendance</div>
+          <div class="dept-meta">Clock in / clock out</div>
+        </a>
+        <a class="dept-card" href="payroll.html">
+          <div class="dept-name">Payroll</div>
+          <div class="dept-meta">Run this month's pay</div>
+        </a>
+        <a class="dept-card" href="payslip.html">
+          <div class="dept-name">Payslips</div>
+          <div class="dept-meta">View & download</div>
+        </a>
+      </div>
+    </section>
+
+  </div>
 </main>
 
 <footer>Clinexa — clinic operations, in one place</footer>
 
 <script>
-  // ---- Supabase setup ----
-  // TODO: replace with your real project URL + anon key (same as login.html)
-  const SUPABASE_URL = "YOUR_SUPABASE_URL";
-  const SUPABASE_ANON_KEY = "YOUR_SUPABASE_ANON_KEY";
-  const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  const SUPABASE_URL = 'https://ktmlvkocrbkjnihixock.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt0bWx2a29jcmJram5paGl4b2NrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ2NzgzMzgsImV4cCI6MjEwMDI1NDMzOH0.PCFlaGJFejfSR3VSHo_HjgNOL2Q7CrZZqN0HEgsev-0';
 
-  const clinicNameEl = document.getElementById('clinicName');
-  const todayDateEl = document.getElementById('todayDate');
-  const deptGrid = document.getElementById('deptGrid');
+  let supabaseClient;
+  let currentClinicId = null;
 
-  todayDateEl.textContent = new Date().toLocaleDateString('en-GB', {
+  const resultEl = document.getElementById('result');
+  function showResult(msg, state) {
+    resultEl.className = state;
+    resultEl.textContent = msg;
+  }
+
+  document.getElementById('todayDate').textContent = new Date().toLocaleDateString('en-GB', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
   });
 
-  // Departments — swap counts for real Supabase queries once schema is wired
-  const departments = [
-    { name: "Front Desk / Records", staff: 2 },
-    { name: "Laboratory", staff: 1 },
-    { name: "Nursing", staff: 2 },
-    { name: "Pharmacy", staff: 1 },
-    { name: "Wards", staff: 0, attention: true },
-    { name: "Outpatient / Clinician", staff: 2 },
-  ];
+  const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
-  function renderDepartments(list) {
-    deptGrid.innerHTML = list.map(d => `
-      <a class="dept-card" href="dashboard.html">
-        <div class="dept-name">${d.name}</div>
-        <div class="dept-meta ${d.attention ? 'attn' : ''}">
-          ${d.attention ? 'Needs attention' : `${d.staff} staff on duty`}
-        </div>
-      </a>
-    `).join('');
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str || '';
+    return div.innerHTML;
   }
 
-  async function loadDashboard() {
-    const { data: { session } } = await supabase.auth.getSession();
+  async function init() {
+    supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false }
+    });
 
-    if (!session) {
-      window.location.href = "login.html";
+    const { data: sessionData } = await supabaseClient.auth.getSession();
+    if (!sessionData.session) {
+      document.getElementById('authGate').style.display = 'block';
       return;
     }
 
-    // Clinic name — falls back gracefully if not set yet in user metadata
-    const clinicName = session.user.user_metadata?.clinic_name || "Your Clinic";
-    clinicNameEl.textContent = clinicName;
+    const userId = sessionData.session.user.id;
+    const { data: profile, error } = await supabaseClient
+      .from('users')
+      .select('clinic_id')
+      .eq('id', userId)
+      .single();
 
-    // TODO: replace static numbers with real Supabase table counts
-    document.getElementById('statInHouse').textContent = "—";
-    document.getElementById('statPatients').textContent = "—";
-    document.getElementById('statStaff').textContent = departments.reduce((a,d)=>a+d.staff,0);
-    document.getElementById('statAttention').textContent =
-      departments.filter(d => d.attention).length;
+    if (error || !profile) {
+      showResult('Could not load your clinic profile.', 'error');
+      document.getElementById('authGate').style.display = 'block';
+      return;
+    }
 
-    renderDepartments(departments);
+    currentClinicId = profile.clinic_id;
+    document.getElementById('dashboardApp').style.display = 'block';
+
+    const { data: clinicRow } = await supabaseClient
+      .from('clinics')
+      .select('name')
+      .eq('id', currentClinicId)
+      .single();
+    document.getElementById('welcomeLine').textContent = clinicRow
+      ? clinicRow.name
+      : "Your Clinic";
+
+    loadKpis();
+    loadAttendanceFeed();
+    loadPayrollFeed();
+  }
+
+  async function loadKpis() {
+    const { data: staffData } = await supabaseClient
+      .from('staff')
+      .select('id')
+      .eq('status', 'active');
+    document.getElementById('kpiTotalStaff').textContent = staffData ? staffData.length : '0';
+
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+    const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toISOString();
+
+    const { data: todayEvents } = await supabaseClient
+      .from('attendance')
+      .select('staff_id, event_type')
+      .gte('event_time', todayStart)
+      .lt('event_time', todayEnd)
+      .eq('event_type', 'clock_in');
+
+    const presentSet = new Set((todayEvents || []).map(e => e.staff_id));
+    document.getElementById('kpiPresentToday').textContent = presentSet.size;
+
+    const thisMonth = now.getMonth() + 1;
+    const thisYear = now.getFullYear();
+
+    const { data: monthRun } = await supabaseClient
+      .from('payroll_runs')
+      .select('id, status')
+      .eq('month', thisMonth)
+      .eq('year', thisYear)
+      .limit(1);
+
+    if (monthRun && monthRun.length > 0 && monthRun[0].status === 'approved') {
+      const { data: items } = await supabaseClient
+        .from('payroll_items')
+        .select('approved_net_pay')
+        .eq('payroll_run_id', monthRun[0].id);
+      const total = (items || []).reduce((sum, i) => sum + parseFloat(i.approved_net_pay || 0), 0);
+      document.getElementById('kpiMonthPayroll').textContent = `₦${total.toLocaleString()}`;
+    } else {
+      document.getElementById('kpiMonthPayroll').textContent = '₦0';
+    }
+
+    const { data: draftRuns } = await supabaseClient
+      .from('payroll_runs')
+      .select('id')
+      .eq('status', 'draft');
+    document.getElementById('kpiPendingRuns').textContent = draftRuns ? draftRuns.length : '0';
+  }
+
+  async function loadAttendanceFeed() {
+    const feedEl = document.getElementById('attendanceFeed');
+
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+    const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toISOString();
+
+    const { data: events, error } = await supabaseClient
+      .from('attendance')
+      .select('id, event_type, event_time, staff:staff_id (first_name, last_name)')
+      .gte('event_time', todayStart)
+      .lt('event_time', todayEnd)
+      .order('event_time', { ascending: false })
+      .limit(10);
+
+    if (error) {
+      feedEl.innerHTML = `<p class="empty-note">Could not load attendance: ${error.message}</p>`;
+      return;
+    }
+    if (!events || events.length === 0) {
+      feedEl.innerHTML = `<p class="empty-note">No attendance recorded today.</p>`;
+      return;
+    }
+
+    feedEl.innerHTML = events.map(e => {
+      const name = e.staff ? `${e.staff.first_name} ${e.staff.last_name}` : 'Unknown staff';
+      const time = new Date(e.event_time).toLocaleString([], { hour: '2-digit', minute: '2-digit' });
+      const label = e.event_type === 'clock_in' ? 'Clock In' : 'Clock Out';
+      return `
+        <div class="row-card">
+          <div>
+            <div class="row-name">${escapeHtml(name)}</div>
+            <div class="row-sub">${time}</div>
+          </div>
+          <span class="badge ${e.event_type}">${label}</span>
+        </div>
+      `;
+    }).join('');
+  }
+
+  async function loadPayrollFeed() {
+    const feedEl = document.getElementById('payrollFeed');
+
+    const { data: runs, error } = await supabaseClient
+      .from('payroll_runs')
+      .select('id, month, year, status')
+      .order('year', { ascending: false })
+      .order('month', { ascending: false })
+      .limit(5);
+
+    if (error) {
+      feedEl.innerHTML = `<p class="empty-note">Could not load payroll: ${error.message}</p>`;
+      return;
+    }
+    if (!runs || runs.length === 0) {
+      feedEl.innerHTML = `<p class="empty-note">No payroll runs yet.</p>`;
+      return;
+    }
+
+    const rowsHtml = await Promise.all(runs.map(async (run) => {
+      const { data: items } = await supabaseClient
+        .from('payroll_items')
+        .select('approved_net_pay, calculated_net_pay')
+        .eq('payroll_run_id', run.id);
+
+      const total = (items || []).reduce((sum, i) =>
+        sum + parseFloat(i.approved_net_pay || i.calculated_net_pay || 0), 0);
+
+      return `
+        <div class="row-card">
+          <div>
+            <div class="row-name">${monthNames[run.month - 1]} ${run.year}</div>
+            <span class="badge ${run.status}">${run.status}</span>
+          </div>
+          <div style="text-align:right;">
+            <div>₦${total.toLocaleString()}</div>
+            <a href="payroll.html">Open →</a>
+          </div>
+        </div>
+      `;
+    }));
+
+    feedEl.innerHTML = rowsHtml.join('');
   }
 
   document.getElementById('signOutBtn').addEventListener('click', async () => {
-    await supabase.auth.signOut();
+    await supabaseClient.auth.signOut();
     window.location.href = "login.html";
   });
 
-  loadDashboard();
+  init();
 </script>
 
 </body>
