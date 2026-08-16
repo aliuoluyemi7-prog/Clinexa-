@@ -2,222 +2,266 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Clinexa — Login</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<title>Clinexa — Log In</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="theme-color" content="#2954E5">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <style>
-  body {
-    font-family: -apple-system, system-ui, sans-serif;
-    max-width: 420px;
-    margin: 40px auto;
-    padding: 0 20px;
-    color: #1a1a1a;
+  :root{
+    --ink:#12213D;
+    --ink-soft:#4A5A78;
+    --blue:#2954E5;
+    --blue-deep:#1B3AB0;
+    --teal:#0EA5A0;
+    --bg:#F5F7FB;
+    --card:#FFFFFF;
+    --line:#E3E8F2;
+    --radius:14px;
   }
-  h1 { font-size: 20px; margin-bottom: 4px; }
-  h2 { font-size: 15px; color: #555; margin-top: 32px; }
-  input {
-    width: 100%;
-    padding: 10px;
-    margin: 6px 0;
-    border: 1px solid #ccc;
-    border-radius: 6px;
-    font-size: 15px;
-    box-sizing: border-box;
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    min-height:100vh;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:'Manrope',sans-serif;
+    -webkit-font-smoothing:antialiased;
   }
-  button {
-    width: 100%;
-    padding: 12px;
-    margin-top: 10px;
-    border: none;
-    border-radius: 6px;
-    background: #2563eb;
-    color: white;
-    font-size: 15px;
-    font-weight: 600;
+  h1{ font-family:'Space Grotesk',sans-serif; letter-spacing:-0.01em; }
+
+  header{
+    background:linear-gradient(180deg,var(--blue-deep) 0%, var(--blue) 100%);
+    color:#fff;
+    padding:34px 18px 40px;
+    position:relative;
+    overflow:hidden;
+    text-align:center;
   }
-  button:active { opacity: 0.8; }
-  button:disabled { background: #9ca3af; }
-  #result {
-    margin-top: 20px;
-    padding: 12px;
-    border-radius: 6px;
-    font-size: 13px;
-    white-space: pre-wrap;
-    word-break: break-word;
+  .brand{
+    display:flex; align-items:center; justify-content:center; gap:8px;
+    font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:22px;
   }
-  #result.success { background: #dcfce7; color: #166534; }
-  #result.error { background: #fee2e2; color: #991b1b; }
-  #result.loading { background: #dbeafe; color: #1e40af; }
+  .brand .dot{ width:10px;height:10px;border-radius:50%; background:var(--teal); box-shadow:0 0 0 4px rgba(14,165,160,0.25); }
+  .tagline{ font-size:13px; opacity:0.85; margin-top:8px; }
+  .pulse-line{ position:absolute; bottom:0; left:0; right:0; height:26px; opacity:0.35; }
+
+  main{ padding:0 16px 60px; margin-top:-24px; max-width:420px; margin-left:auto; margin-right:auto; }
+
+  .card{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:20px;
+    box-shadow:0 10px 24px rgba(18,33,61,0.06);
+  }
+
+  .tabs{ display:flex; gap:6px; margin-bottom:18px; background:var(--bg); border-radius:12px; padding:4px; }
+  .tab{
+    flex:1; text-align:center; padding:9px 0; border-radius:9px;
+    font-size:13.5px; font-weight:700; color:var(--ink-soft); cursor:pointer;
+  }
+  .tab.active{ background:var(--blue); color:#fff; }
+
+  .panel{ display:none; }
+  .panel.active{ display:block; }
+
+  label{ font-size:12.5px; font-weight:600; color:var(--ink-soft); display:block; margin:12px 0 5px; }
+  input{
+    width:100%; padding:12px 13px; border:1px solid var(--line); border-radius:10px;
+    font-size:15px; font-family:'Manrope',sans-serif; color:var(--ink);
+  }
+  input:focus{ outline:2px solid var(--blue); outline-offset:1px; }
+
+  button.primary{
+    width:100%; padding:13px; margin-top:18px; border:none; border-radius:10px;
+    background:var(--blue); color:#fff; font-size:15px; font-weight:700;
+    font-family:'Manrope',sans-serif;
+  }
+  button.primary:active{ background:var(--blue-deep); }
+  button.primary:disabled{ background:#B9C3DE; }
+
+  #statusMsg{
+    margin-top:14px; padding:11px 13px; border-radius:10px; font-size:13px;
+    display:none; line-height:1.4;
+  }
+  #statusMsg.success{ background:#DCFCE7; color:#166534; display:block; }
+  #statusMsg.error{ background:#FEE2E2; color:#991B1B; display:block; }
+  #statusMsg.loading{ background:#DBEAFE; color:#1E40AF; display:block; }
+
+  footer{ text-align:center; margin-top:22px; font-size:11.5px; color:var(--ink-soft); }
 </style>
-  <link rel="manifest" href="manifest.json">
-  <link rel="icon" type="image/x-icon" href="favicon.ico">
-  <link rel="apple-touch-icon" href="icon-180.png">
-  <meta name="theme-color" content="#2563eb">
 </head>
 <body>
 
-  <h1>Clinexa</h1>
-  <p style="color:#666; font-size:14px;">Test page — signup, login, session check</p>
+<header>
+  <div class="brand"><span class="dot"></span>Clinexa</div>
+  <div class="tagline">Clinic operations, in one place</div>
+  <svg class="pulse-line" viewBox="0 0 400 26" preserveAspectRatio="none">
+    <polyline points="0,13 60,13 75,4 90,22 105,13 400,13" fill="none" stroke="#ffffff" stroke-width="2" />
+  </svg>
+</header>
 
-  <div id="result" class="loading">Loading Supabase library… please wait.</div>
+<main>
+  <div class="card">
 
-  <h2>Register Clinic</h2>
-  <input type="text" id="clinicName" placeholder="Clinic name (e.g. Wellspring Clinic)">
-  <input type="email" id="signupEmail" placeholder="Email">
-  <input type="password" id="signupPassword" placeholder="Password (min 6 chars)">
-  <button id="signupBtn" disabled>Register Clinic</button>
+    <div class="tabs">
+      <div class="tab active" id="tabLogin">Log In</div>
+      <div class="tab" id="tabRegister">Register Clinic</div>
+    </div>
 
-  <h2>Login</h2>
-  <input type="email" id="loginEmail" placeholder="Email">
-  <input type="password" id="loginPassword" placeholder="Password">
-  <button id="loginBtn" disabled>Log In</button>
+    <!-- LOGIN PANEL -->
+    <div class="panel active" id="panelLogin">
+      <label for="loginEmail">Email</label>
+      <input type="email" id="loginEmail" placeholder="you@clinic.com">
+      <label for="loginPassword">Password</label>
+      <input type="password" id="loginPassword" placeholder="••••••••">
+      <button class="primary" id="loginBtn" disabled>Log In</button>
+    </div>
 
-  <h2>Session</h2>
-  <button id="checkSessionBtn" disabled>Check Current Session</button>
-  <button id="logoutBtn" disabled style="background:#6b7280;">Log Out</button>
+    <!-- REGISTER PANEL -->
+    <div class="panel" id="panelRegister">
+      <label for="clinicName">Clinic name</label>
+      <input type="text" id="clinicName" placeholder="e.g. Wellspring Clinic">
+      <label for="signupEmail">Email</label>
+      <input type="email" id="signupEmail" placeholder="you@clinic.com">
+      <label for="signupPassword">Password</label>
+      <input type="password" id="signupPassword" placeholder="Min 6 characters">
+      <button class="primary" id="signupBtn" disabled>Register Clinic</button>
+    </div>
 
-  <!-- Classic script tag (not type="module") — loads the Supabase UMD build.
-       More reliable than ES module CDN imports on slow/unstable connections,
-       and gives us a plain global `supabase` object to work with. -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+    <div id="statusMsg"></div>
+  </div>
 
-  <script>
-    const resultEl = document.getElementById('result');
+  <footer>Powered by Clinexa</footer>
+</main>
 
-    function showResult(obj, state) {
-      // state: 'success' | 'error' | 'loading'
-      resultEl.className = state;
-      resultEl.textContent = typeof obj === 'string' ? obj : JSON.stringify(obj, null, 2);
-    }
+<script>
+  const statusEl = document.getElementById('statusMsg');
+  function showStatus(msg, state) {
+    statusEl.className = state;
+    statusEl.textContent = msg;
+  }
+  function clearStatus() {
+    statusEl.className = '';
+    statusEl.textContent = '';
+  }
 
-    window.addEventListener('error', (e) => {
-      showResult({
-        uncaught_error: e.message,
-        filename: e.filename,
-        line: e.lineno
-      }, 'error');
+  // ---- Tab switching ----
+  const tabLogin = document.getElementById('tabLogin');
+  const tabRegister = document.getElementById('tabRegister');
+  const panelLogin = document.getElementById('panelLogin');
+  const panelRegister = document.getElementById('panelRegister');
+
+  tabLogin.addEventListener('click', () => {
+    tabLogin.classList.add('active'); tabRegister.classList.remove('active');
+    panelLogin.classList.add('active'); panelRegister.classList.remove('active');
+    clearStatus();
+  });
+  tabRegister.addEventListener('click', () => {
+    tabRegister.classList.add('active'); tabLogin.classList.remove('active');
+    panelRegister.classList.add('active'); panelLogin.classList.remove('active');
+    clearStatus();
+  });
+
+  // ---- Supabase client setup ----
+  const SUPABASE_URL = 'https://ktmlvkocrbkjnihixock.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt0bWx2a29jcmJram5paGl4b2NrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ2NzgzMzgsImV4cCI6MjEwMDI1NDMzOH0.PCFlaGJFejfSR3VSHo_HjgNOL2Q7CrZZqN0HEgsev-0';
+
+  let supabaseClient;
+
+  try {
+    supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false }
     });
+    document.getElementById('signupBtn').disabled = false;
+    document.getElementById('loginBtn').disabled = false;
 
-    // ---- Supabase client setup ----
-    const SUPABASE_URL = 'https://ktmlvkocrbkjnihixock.supabase.co';
-    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt0bWx2a29jcmJram5paGl4b2NrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ2NzgzMzgsImV4cCI6MjEwMDI1NDMzOH0.PCFlaGJFejfSR3VSHo_HjgNOL2Q7CrZZqN0HEgsev-0';
+    // If already logged in, skip straight to the dashboard
+    supabaseClient.auth.getSession().then(({ data }) => {
+      if (data.session) window.location.href = "dashboard.html";
+    });
+  } catch (err) {
+    showStatus('Could not connect. Please refresh and try again.', 'error');
+  }
 
-    let supabaseClient;
+  // ---- Auth functions (unchanged logic) ----
 
+  async function signUpOwner({ email, password, clinicName }) {
     try {
-      // The UMD build exposes a global `supabase` object with `.createClient`
-      supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-        auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false }
+      const { data: authData, error: authError } = await supabaseClient.auth.signUp({ email, password });
+      if (authError) return { success: false, error: authError.message };
+
+      const userId = authData.user?.id;
+      if (!userId) {
+        return { success: false, error: 'Signup succeeded but no user ID returned. Email confirmation may be required.' };
+      }
+
+      const { data: rpcData, error: rpcError } = await supabaseClient.rpc('register_clinic', {
+        clinic_name: clinicName
       });
-      showResult('Supabase loaded successfully. Ready to test.', 'success');
 
-      // Enable buttons now that the client is ready
-      document.getElementById('signupBtn').disabled = false;
-      document.getElementById('loginBtn').disabled = false;
-      document.getElementById('checkSessionBtn').disabled = false;
-      document.getElementById('logoutBtn').disabled = false;
+      if (rpcError) return { success: false, error: `Clinic registration failed: ${rpcError.message}` };
 
+      return { success: true, data: rpcData };
     } catch (err) {
-      showResult({ supabase_init_failed: err.message || String(err) }, 'error');
+      return { success: false, error: err.message || 'Unexpected error during signup.' };
+    }
+  }
+
+  async function login({ email, password }) {
+    const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+    if (error) return { success: false, error: error.message };
+    return { success: true, data };
+  }
+
+  // ---- Button wiring ----
+
+  document.getElementById('signupBtn').addEventListener('click', async () => {
+    const clinicName = document.getElementById('clinicName').value.trim();
+    const email = document.getElementById('signupEmail').value.trim();
+    const password = document.getElementById('signupPassword').value;
+
+    if (!clinicName || !email || !password) {
+      showStatus('Please fill in clinic name, email, and password.', 'error');
+      return;
     }
 
-    // ---- Auth functions (inlined, no separate service files needed) ----
+    showStatus('Creating your clinic account…', 'loading');
+    const res = await signUpOwner({ email, password, clinicName });
 
-    async function signUpOwner({ email, password, clinicName }) {
-      try {
-        const { data: authData, error: authError } = await supabaseClient.auth.signUp({ email, password });
-        if (authError) return { success: false, error: authError.message };
+    if (res.success) {
+      showStatus('Clinic registered! You can now log in below.', 'success');
+      document.getElementById('loginEmail').value = email;
+      tabLogin.click();
+    } else {
+      showStatus(res.error || 'Something went wrong. Please try again.', 'error');
+    }
+  });
 
-        const userId = authData.user?.id;
-        if (!userId) {
-          return { success: false, error: 'Signup succeeded but no user ID returned. Check if email confirmation is required in Supabase settings.' };
-        }
+  document.getElementById('loginBtn').addEventListener('click', async () => {
+    const email = document.getElementById('loginEmail').value.trim();
+    const password = document.getElementById('loginPassword').value;
 
-        // Call the database function that atomically creates the clinic
-        // and links this user as owner, bypassing the RLS chicken-and-egg
-        // problem of a brand-new user having no clinic_id yet.
-        const { data: rpcData, error: rpcError } = await supabaseClient.rpc('register_clinic', {
-          clinic_name: clinicName
-        });
-
-        if (rpcError) return { success: false, error: `Clinic registration failed: ${rpcError.message}` };
-
-        return { success: true, data: rpcData };
-      } catch (err) {
-        return { success: false, error: err.message || 'Unexpected error during signup.' };
-      }
+    if (!email || !password) {
+      showStatus('Please enter your email and password.', 'error');
+      return;
     }
 
-    async function login({ email, password }) {
-      const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
-      if (error) return { success: false, error: error.message };
-      return { success: true, data };
+    showStatus('Logging in…', 'loading');
+    const res = await login({ email, password });
+
+    if (res.success) {
+      showStatus('Welcome back! Redirecting…', 'success');
+      window.location.href = "dashboard.html";
+    } else {
+      showStatus(res.error || 'Login failed. Check your email and password.', 'error');
     }
-
-    async function logout() {
-      const { error } = await supabaseClient.auth.signOut();
-      if (error) return { success: false, error: error.message };
-      return { success: true };
-    }
-
-    async function getSession() {
-      const { data, error } = await supabaseClient.auth.getSession();
-      if (error) return { success: false, error: error.message };
-      return { success: true, session: data.session };
-    }
-
-    async function getCurrentUserProfile() {
-      const { data: sessionData, error: sessionError } = await supabaseClient.auth.getSession();
-      if (sessionError || !sessionData.session) return { success: false, error: 'No active session.' };
-
-      const authUserId = sessionData.session.user.id;
-      const { data, error } = await supabaseClient
-        .from('users')
-        .select('id, clinic_id, staff_id, email, role')
-        .eq('id', authUserId)
-        .single();
-
-      if (error) return { success: false, error: error.message };
-      return { success: true, profile: data };
-    }
-
-    // ---- Button wiring ----
-
-    document.getElementById('signupBtn').addEventListener('click', async () => {
-      const clinicName = document.getElementById('clinicName').value.trim();
-      const email = document.getElementById('signupEmail').value.trim();
-      const password = document.getElementById('signupPassword').value;
-
-      if (!clinicName || !email || !password) {
-        showResult({ error: 'Fill in clinic name, email, and password.' }, 'error');
-        return;
-      }
-
-      showResult('Creating account…', 'loading');
-      const res = await signUpOwner({ email, password, clinicName });
-      showResult(res, res.success ? 'success' : 'error');
-    });
-
-    document.getElementById('loginBtn').addEventListener('click', async () => {
-      const email = document.getElementById('loginEmail').value.trim();
-      const password = document.getElementById('loginPassword').value;
-
-      showResult('Logging in…', 'loading');
-      const res = await login({ email, password });
-      showResult(res, res.success ? 'success' : 'error');
-    });
-
-    document.getElementById('checkSessionBtn').addEventListener('click', async () => {
-      showResult('Checking session…', 'loading');
-      const sessionRes = await getSession();
-      const profileRes = await getCurrentUserProfile();
-      showResult({ session: sessionRes, profile: profileRes }, 'success');
-    });
-
-    document.getElementById('logoutBtn').addEventListener('click', async () => {
-      const res = await logout();
-      showResult(res, res.success ? 'success' : 'error');
-    });
-  </script>
+  });
+</script>
 
 </body>
 </html>
